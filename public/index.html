@@ -1,0 +1,132 @@
+<!-- USED WITH [WOLF] JB -->
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>لوحة تحكم بوتات ماين كرافت</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; }
+        .container { display: grid; grid-template-columns: 320px 1fr 300px; gap: 20px; height: 90vh; }
+        .panel { background: #1e1e1e; border-radius: 8px; padding: 15px; display: flex; flex-direction: column; border: 1px solid #333; }
+        h2, h3 { margin-top: 0; color: #00ff88; border-bottom: 1px solid #333; padding-bottom: 8px; }
+        input, button, select { margin-bottom: 10px; padding: 10px; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: #fff; }
+        button { background: #008cba; border: none; cursor: pointer; font-weight: bold; }
+        button:hover { background: #005f73; }
+        button.danger { background: #d9534f; }
+        button.danger:hover { background: #c9302c; }
+        .console { flex: 1; background: #000; font-family: monospace; padding: 10px; border-radius: 4px; overflow-y: auto; color: #0f0; line-height: 1.4; font-size: 13px; }
+        .bot-list { overflow-y: auto; flex: 1; }
+        .bot-item { display: flex; justify-content: space-between; padding: 8px; background: #2a2a2a; margin-bottom: 5px; border-radius: 4px; cursor: pointer; }
+        .bot-item.active { border: 1px solid #00ff88; background: #333; }
+        .status-online { color: #00ff88; font-weight: bold; }
+        .status-offline { color: #ff4444; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- الإعدادات -->
+    <div class="panel">
+        <h2>إعدادات البوتات</h2>
+        <input type="text" id="host" placeholder="IP السيرفر (مثال: 127.0.0.1)">
+        <input type="number" id="port" value="25565" placeholder="Port">
+        <input type="text" id="prefix" value="Bot" placeholder="بادئة اسم البوت">
+        <input type="number" id="count" value="5" placeholder="عدد البوتات">
+        <input type="number" id="delay" value="4000" placeholder="التأخير بالمللي ثانية (مثال: 4000)">
+        <input type="text" id="version" placeholder="الإصدار (مثال: 1.20.4)">
+        <button onclick="startBots()">تشغيل البوتات</button>
+        <button class="danger" onclick="stopAll()">إيقاف الجميع</button>
+    </div>
+
+    <!-- الكونسول والشات -->
+    <div class="panel">
+        <h2 id="console-title">الكونسول الموحد</h2>
+        <div id="console" class="console"></div>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <input type="text" id="chatInput" placeholder="اكتب رسالة..." style="flex:1; margin:0;" onkeypress="if(event.key==='Enter') sendChat()">
+            <button onclick="sendChat()" style="margin:0;">إرسال</button>
+        </div>
+    </div>
+
+    <!-- قائمة البوتات وقنوات التحكم -->
+    <div class="panel">
+        <h3>قائمة البوتات</h3>
+        <button onclick="selectBot('ALL')" style="width:100%; margin-bottom:10px;">الكونسول الموحد (الجميع)</button>
+        <div id="botList" class="bot-list"></div>
+    </div>
+</div>
+
+<script>
+    const socket = io();
+    let currentTarget = 'ALL';
+    const logs = { ALL: [] };
+
+    function startBots() {
+        const config = {
+            host: document.getElementById('host').value,
+            port: document.getElementById('port').value,
+            prefix: document.getElementById('prefix').value,
+            count: document.getElementById('count').value,
+            delay: document.getElementById('delay').value,
+            version: document.getElementById('version').value
+        };
+        socket.emit('start-bots', config);
+    }
+
+    function stopAll() {
+        socket.emit('stop-all');
+    }
+
+    function sendChat() {
+        const input = document.getElementById('chatInput');
+        if (!input.value.trim()) return;
+        socket.emit('send-chat', { target: currentTarget, message: input.value });
+        input.value = '';
+    }
+
+    function selectBot(botName) {
+        currentTarget = botName;
+        document.getElementById('console-title').innerText = botName === 'ALL' ? 'الكونسول الموحد' : `كونسول البوت: ${botName}`;
+        renderConsole();
+    }
+
+    function renderConsole() {
+        const consoleDiv = document.getElementById('console');
+        const list = logs[currentTarget] || [];
+        consoleDiv.innerHTML = list.map(line => `<div>${line}</div>`).join('');
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    }
+
+    socket.on('log', (data) => {
+        const time = new Date().toLocaleTimeString();
+        const line = `[${time}] [${data.bot}] ${data.text}`;
+
+        // إضافة للكونسول الموحد
+        logs.ALL.push(line);
+
+        // إضافة لكونسول البوت المخصص
+        if (!logs[data.bot]) logs[data.bot] = [];
+        logs[data.bot].push(line);
+
+        renderConsole();
+    });
+
+    socket.on('bot-status', (data) => {
+        let el = document.getElementById(`bot-${data.bot}`);
+        const botList = document.getElementById('botList');
+
+        if (!el) {
+            el = document.createElement('div');
+            el.id = `bot-${data.bot}`;
+            el.className = 'bot-item';
+            el.onclick = () => selectBot(data.bot);
+            botList.appendChild(el);
+        }
+
+        el.innerHTML = `<span>${data.bot}</span><span class="status-${data.status}">${data.status}</span>`;
+    });
+</script>
+</body>
+</html>
+<!-- USED WITH [WOLF] JB -->
